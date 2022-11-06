@@ -1,0 +1,5 @@
+# Ignore pycache, tempCodeRunner and vscode settings
+
+**.vscode/
+**__pycache__/
+**tempCodeRunnerFile.py
