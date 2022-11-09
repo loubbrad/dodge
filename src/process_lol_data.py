@@ -15,8 +15,8 @@ def process_player_data_from_matches(load_path: str, save_path: str | None = Non
         save_path: Path to save processed_player_data.
         include_key: Will column of keys if true.
     Returns:
-        Processed player data as DataFrame object.
-        Name of save file (Optional).
+        processed_player_data: Processed player data in DataFrame format.
+        file_name: Name of saved file (optional).
     """
     
     # Compiling players present in match data into DataFrame format.
@@ -80,8 +80,8 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
         save_path: Path to save processed_match_data.
         noise_rate = Proportion of player names and key to delete from match data. 
     Returns:
-        Processed match data as DataFrame object.
-        Name of save file (Optional).
+        processed_match_data: Processed match data in DataFrame format.
+        file_name: Name of saved file (optional).
     """
     
     assert 0 <= noise_rate <= 1, 'Invalid noise_rate (must be in-between 0 and 1).'
