@@ -7,6 +7,7 @@ RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 # TODO:
 # - Complete testing
+# - Rename variables for clarity.
 
 def load_players(reg: str, player_count: int = 1000, save_path: str | None = None):
     
@@ -17,8 +18,13 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
         save_path: Path to save player data if save == True.
 
     Returns:
-        Player data in DataFrame format.
+        player_data: Player data in DataFrame format.
+        file_name: Name of saved file (optional).
     """
+    
+    # Assert Args have correct format.
+    assert reg in ['na1', 'euw1', 'eun1' 'kr'], 'Invalid region.'
+    assert player_count > 0, 'Invalid player count (must be >0).'
 
     # Catch invalid API key.
     try:
@@ -30,7 +36,9 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
             raise
         else:
             raise
-        
+
+    # Gather player information into DataFrame format.
+
     chal_players = watcher.league.challenger_by_queue(region = reg, queue = 'RANKED_SOLO_5x5')
     gm_players = watcher.league.grandmaster_by_queue(region = reg, queue = 'RANKED_SOLO_5x5')
     m_players = watcher.league.masters_by_queue(region = reg, queue = 'RANKED_SOLO_5x5')
@@ -52,7 +60,7 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
                                      summoner['summonerId'], summoner['summonerName'],
                                      summoner['leaguePoints']))
 
-        if i % 25 == 0: 
+        if i % 100 == 0: 
             print( i, 'players processed.')
 
     print(j, 'failures.')
@@ -61,17 +69,17 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
     df = pd.DataFrame(in_order_players, columns = ['puuid', 'accountId', 'summonerId', 'summonerName', 'leaguePoints'])
     df = df.sort_values('leaguePoints', ascending = False)
     
-    # Saving player data
+    # Saving player data.
     if not (save_path is None) :
-        
         curr_date = round(time.time())
-
         try:
-            df.to_csv( (save_path + '{name}.csv').format(name = 'players_' + reg + '_' + str(curr_date)) , index = False)
+            df.to_csv( (save_path + '{name}.csv').format(name = 'raw_player_data_' + reg + '_' + str(curr_date)) , index = False)
         except Exception as e:
             print('Failed to save player data to .csv file.')
             raise
-
+        else:
+            return df, '{name}.csv'.format(name = 'raw_player_data_' + reg + '_' + str(curr_date))
+        
     return df
 
 def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
@@ -85,12 +93,18 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
         players: Player data in DataFrame format with column labelled 'puuid'.
         load_path: Path to .csv file where first column corresponds to player puuids.
         save_path: Path to save match data.
-        time_limit: Time in hours as an upper limit for the script to run
+        time_limit: Time in hours as an upper limit for the script to run.
 
     Returns:
-        Match data in DataFrame format
+        match_data: Match data in DataFrame format.
+        file_name: Name of saved file (optional).
     """ 
     
+    # Assert Args have correct format.
+    assert reg in ['na1', 'euw1', 'eun1' 'kr'], 'Invalid region'
+    assert time_limit > 0, 'Invalid time limit (must be >0).'
+    assert date < time.time(), 'Invalid date (must be < current Epoch minute time)'
+
     # Loading player data into DataFrame.
     if (players is None) and (load_path is None):
         raise ValueError('Specify at least one of players or load_data')
@@ -120,56 +134,62 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
             raise
         
     # Finding matches 
+
     searched_matches = []
     match_data = {}  
-    start_time = time.time()
+    curr_time = round(time.time() - 1)
+    prev = 0
     i = 0
 
     for puuid in player_puuids:
 
-        player_match_history, searched_matches = load_matches_from_player(watcher, puuid, date, reg, searched_matches)
+        player_match_history, searched_matches = load_matches_from_player(watcher, puuid, date, curr_time, reg, searched_matches)
         match_data = match_data | player_match_history
-        print('Processed ' + str(len(searched_matches)) + ' matches.')
-        
+
+        if (len(searched_matches)) - prev > 100:
+            print('Processed ' + str(len(searched_matches)) + ' matches.')
+            prev = len(searched_matches) 
+
         i += 1
         
-        if (time.time() - start_time) >= time_limit * (60**2): 
+        if (time.time() - curr_time) >= time_limit * (60**2): 
             print('Time limit of ' + str(time_limit) + ' hours exceeded.')
             print(i, 'out of', player_puuids.size, "player's match history processed.")
             break 
     
     df = pd.DataFrame.from_dict(match_data, orient = 'index')
+    df.index.name = 'match_id'
     
     # Saving matches
     if not (save_path is None):
-        
-        curr_date = round(time.time())
-
         try:
-            df.to_csv( (save_path + '{name}.csv').format(name = 'match_data_' + reg + '_' + str(date) + '_' + str(curr_date)))
+            df.to_csv((save_path + '{name}.csv').format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time)))
         except Exception as e:
             print('Failed to save match data to .csv file.')
             raise
+        else:
+            return df, '{name}.csv'.format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time))
     
     return df
 
-def load_matches_from_player(watcher: LolWatcher, puuid: str, date: int, reg: str, searched_matches = []):
+def load_matches_from_player(watcher: LolWatcher, puuid: str, start_date: int, end_date: int, reg: str, searched_matches = []):
     
     """
     Args:
         watcher: LolWatcher object.
         puuid: puuid of player to search.
-        date: Epoch (minute) timestamp of how far to look back for matches.
+        start_date: Epoch (minute) timestamp of how far back to look for matches.
+        end_date: Epoch (minute) timestamp of how far forward to look for matches (end_date > start_date).
         reg: Region.
         searched_matches: List of matches already searched.
 
     Returns:
+        player_match_data: Dictionary of the form {match_id: {attribute: value}}
         searched_matches: Updated list of matched already searched.
-        match_info_for_return: Dictionary of the form 
     """
 
     try:
-        match_list = watcher.match.matchlist_by_puuid(puuid = puuid, region = reg, start_time = date, count = 100)
+        match_list = watcher.match.matchlist_by_puuid(puuid = puuid, region = reg, start_time = start_date, end_time = end_date, count = 100)
     except ApiError as e:
         print('There was an issue finding the matches of player' + str(puuid) + ':')
         print(e)
@@ -189,14 +209,17 @@ def load_matches_from_player(watcher: LolWatcher, puuid: str, date: int, reg: st
                 break
 
             serialised_match_info = {}
+            i = 0
                                     
-            for participant, i in zip(match_info['info']['participants'], range(1, 11)):
+            for participant in match_info['info']['participants']:
                 
-                serialised_match_info['p{j}'.format(j = i) + '_name'] = participant['summonerName']
-                serialised_match_info['p{j}'.format(j = i) + '_puuid'] = participant['puuid']
-                serialised_match_info['p{j}'.format(j = i) + '_summonerId'] = participant['summonerId']
-                serialised_match_info['p{j}'.format(j = i) + '_champId'] = participant['championId']
-                serialised_match_info['p{j}'.format(j = i) + '_win'] = participant['win']
+                i += 1
+                
+                serialised_match_info['p{p_num}'.format(p_num = i) + '_name'] = participant['summonerName']
+                serialised_match_info['p{p_num}'.format(p_num = i) + '_puuid'] = participant['puuid']
+                serialised_match_info['p{p_num}'.format(p_num = i) + '_summonerId'] = participant['summonerId']
+                serialised_match_info['p{p_num}'.format(p_num = i) + '_champId'] = participant['championId']
+                serialised_match_info['p{p_num}'.format(p_num = i) + '_win'] = participant['win']
 
             player_match_data[match_id] = serialised_match_info
             searched_matches.append(match_id)
