@@ -63,7 +63,6 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
         if i % 100 == 0: 
             print( i, 'players processed.')
 
-    print(j, 'failures.')
     in_order_players = sorted(in_order_players, key = lambda kv: kv[4], reverse = True)
 
     df = pd.DataFrame(in_order_players, columns = ['puuid', 'accountId', 'summonerId', 'summonerName', 'leaguePoints'])
@@ -75,8 +74,8 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
         try:
             df.to_csv( (save_path + '{name}.csv').format(name = 'raw_player_data_' + reg + '_' + str(curr_date)) , index = False)
         except Exception as e:
+            print(e)
             print('Failed to save player data to .csv file.')
-            raise
         else:
             return df, '{name}.csv'.format(name = 'raw_player_data_' + reg + '_' + str(curr_date))
         
@@ -147,7 +146,7 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
         match_data = match_data | player_match_history
 
         if (len(searched_matches)) - prev > 100:
-            print('Processed ' + str(len(searched_matches)) + ' matches.')
+            print(len(searched_matches), 'matches searched.')
             prev = len(searched_matches) 
 
         i += 1
@@ -165,8 +164,8 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
         try:
             df.to_csv((save_path + '{name}.csv').format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time)))
         except Exception as e:
+            print(e)
             print('Failed to save match data to .csv file.')
-            raise
         else:
             return df, '{name}.csv'.format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time))
     
@@ -191,8 +190,8 @@ def load_matches_from_player(watcher: LolWatcher, puuid: str, start_date: int, e
     try:
         match_list = watcher.match.matchlist_by_puuid(puuid = puuid, region = reg, start_time = start_date, end_time = end_date, count = 100)
     except ApiError as e:
-        print('There was an issue finding the matches of player' + str(puuid) + ':')
         print(e)
+        print('There was an issue finding the matches of player' + str(puuid) + ':')
         return  
     
     player_match_data = {}
@@ -204,8 +203,8 @@ def load_matches_from_player(watcher: LolWatcher, puuid: str, start_date: int, e
             try:
                 match_info = watcher.match.by_id(region = reg, match_id = match_id)
             except ApiError as e:
-                print('There was an issue finding the match information for match_id =' + str(match_id) + ':')
                 print(e)
+                print('There was an issue finding the match information for match_id = ' + str(match_id) + ':')
                 break
 
             serialised_match_info = {}
