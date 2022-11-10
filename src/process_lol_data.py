@@ -1,11 +1,13 @@
 import pandas as pd
+import numpy as np
 import os
 from riotwatcher import LolWatcher, ApiError
 
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 #TODO:
-# - Complete testing
+# - Complete testing.
+# - Make data processing more parallelised and efficient.
 
 def process_player_data_from_matches(load_path: str, save_path: str | None = None, include_key: bool = True):
 
@@ -64,8 +66,8 @@ def process_player_data_from_matches(load_path: str, save_path: str | None = Non
         try:
             combined_player_names.to_csv(save_path + match_data_file_name.replace('raw_match_data', 'processed_player_data'), index = False)
         except Exception as e:
+            print(e)
             print('Failed to save processed player data to .csv file.')
-            raise
         else:
             return combined_player_names, match_data_file_name.replace('raw_match_data', 'processed_player_data')
     
@@ -109,11 +111,15 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
     champ_dict = {int(static_champ_list['data'][champ]['key']):
               static_champ_list['data'][champ]['name'] for champ in static_champ_list['data']}
     
+    # Adding column displaying the winning team and then deleting p{i}_win columns.
+    match_data['winning_team'] = match_data.apply( lambda row: 2 - int(row.p1_win), axis = 1)
+    
     for i in range(1, 11):
         
         # Remove unnecessary columns for player i.
         match_data = match_data.drop(columns = ['p{p_num}_puuid'.format(p_num = i),
-                                                'p{p_num}_summonerId'.format(p_num = i)])
+                                                'p{p_num}_summonerId'.format(p_num = i),
+                                                'p{p_num}_win'.format(p_num = i)])
         
         # Add noise - randomly delete 0.1 * player names from column p{i}_name.
         row_indices = match_data.sample(frac = noise_rate).index
@@ -126,14 +132,22 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
         # Adding column for name of champion of player i.
         match_data['p{p_num}_champName'.format(p_num = i)] = match_data['p{p_num}_champId'.format(p_num = i)].map(champ_dict)
         
+    # Duplicate rows for team 1 and team 2, delete summoner information for corresponding team.
+    match_data = pd.concat([match_data]*2).sort_index().reset_index(drop = True)
+    match_data.loc[::2, ['p1_name', 'p2_name', 'p3_name', 'p4_name', 'p5_name']] = '<U>'
+    match_data.loc[::2, ['p1_key', 'p2_key', 'p3_key', 'p4_key', 'p5_key']] = '0'
+    match_data.loc[::2, ['match_id']] = match_data.loc[::2, ['match_id']] + '_1'
+    match_data.loc[1::2, ['p6_name', 'p7_name', 'p8_name', 'p9_name', 'p10_name']] = '<U>'
+    match_data.loc[1::2, ['p6_key', 'p7_key', 'p8_key', 'p9_key', 'p10_key']] = '0'
+    match_data.loc[1::2, ['match_id']] = match_data.loc[1::2, ['match_id']] + '_2'
+    
     # Reordering columns.
-    ordered_cols = ['match_id']
+    ordered_cols = ['match_id', 'winning_team']
     for i in range(1, 11):
         ordered_cols.append('p{p_num}_name'.format(p_num = i))
         ordered_cols.append('p{p_num}_key'.format(p_num = i))
         ordered_cols.append('p{p_num}_champId'.format(p_num = i))
         ordered_cols.append('p{p_num}_champName'.format(p_num = i))
-        ordered_cols.append('p{p_num}_win'.format(p_num = i))
     
     match_data_processed = match_data[ordered_cols]
     
@@ -143,8 +157,8 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
         try:
             match_data_processed.to_csv(save_path + match_data_file_name.replace('raw_match_data', 'processed_match_data'), index = False)
         except Exception as e:
+            print(e)
             print('Failed to save processed match data to .csv file.')
-            raise
         else:
             return match_data_processed, match_data_file_name.replace('raw_match_data', 'processed_match_data')
 
