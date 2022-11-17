@@ -21,7 +21,7 @@ def process_player_data_from_matches(load_path: str, save_path: str | None = Non
         file_name: Name of saved file (optional).
     """
     
-    # Compiling players present in match data into DataFrame format.
+    # Compiling players present in raw match data into DataFrame format.
 
     match_data = pd.read_csv(load_path)
     
