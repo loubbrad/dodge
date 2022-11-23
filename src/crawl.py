@@ -6,10 +6,10 @@ from riotwatcher import LolWatcher, ApiError
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 # TODO:
-# - Complete testing
-# - Rename variables for clarity.
+# - Specify dtypes for dataFrames (not sure if necessary).
+# - Replace .format() with f-stings (Unnecessary but helps with clarity).
 
-def load_players(reg: str, player_count: int = 1000, save_path: str | None = None):
+def load_players(reg: str, player_count: int = 200, save_path: str | None = None):
     
     """
     Args:
@@ -18,8 +18,7 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
         save_path: Path to save player data if save == True.
 
     Returns:
-        player_data: Player data in DataFrame format.
-        file_name: Name of saved file (optional).
+        player_data: Player data in DataFrame format. player_data.file_name records filename if saved.
     """
     
     # Assert Args have correct format.
@@ -69,15 +68,16 @@ def load_players(reg: str, player_count: int = 1000, save_path: str | None = Non
     df = df.sort_values('leaguePoints', ascending = False)
     
     # Saving player data.
+    curr_date = round(time.time())
+    df.file_name = '{name}.csv'.format(name = 'raw_player_data_' + reg + '_' + str(curr_date))
     if not (save_path is None) :
-        curr_date = round(time.time())
         try:
-            df.to_csv( (save_path + '{name}.csv').format(name = 'raw_player_data_' + reg + '_' + str(curr_date)) , index = False)
+            df.to_csv(save_path + df.file_name, index = False)
         except Exception as e:
             print(e)
             print('Failed to save player data to .csv file.')
         else:
-            return df, '{name}.csv'.format(name = 'raw_player_data_' + reg + '_' + str(curr_date))
+            return df
         
     return df
 
@@ -95,8 +95,7 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
         time_limit: Time in hours as an upper limit for the script to run.
 
     Returns:
-        match_data: Match data in DataFrame format.
-        file_name: Name of saved file (optional).
+        match_data: Match data in DataFrame format. match_data.file_name records filename if saved.
     """ 
     
     # Assert Args have correct format.
@@ -157,17 +156,19 @@ def load_matches(reg: str, date: int, players: pd.DataFrame | None = None,
             break 
     
     df = pd.DataFrame.from_dict(match_data, orient = 'index')
-    df.index.name = 'match_id'
+    df.insert(0, 'match_id', '')
+    df['match_id'] = df.index
     
     # Saving matches
+    df.file_name = '{name}.csv'.format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time))
     if not (save_path is None):
         try:
-            df.to_csv((save_path + '{name}.csv').format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time)))
+            df.to_csv(save_path + df.file_name)
         except Exception as e:
             print(e)
             print('Failed to save match data to .csv file.')
         else:
-            return df, '{name}.csv'.format(name = 'raw_match_data_' + reg + '_' + str(date) + '_' + str(curr_time))
+            return df
     
     return df
 

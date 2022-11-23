@@ -6,95 +6,45 @@ from riotwatcher import LolWatcher, ApiError
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 #TODO:
-# - Complete testing.
-# - Make data processing more parallelised and efficient.
+# - Specify dtypes of dataFrames (getting dtypeWarning at runtime).
+# - Replace .format() with fstrings for readability.
 
-def process_player_data_from_matches(load_path: str, save_path: str | None = None, include_key: bool = True):
-
-    """
-    Args:
-        load_path: Path to raw_match_data.
-        save_path: Path to save processed_player_data.
-        include_key: Will column of keys if true.
-    Returns:
-        processed_player_data: Processed player data in DataFrame format.
-        file_name: Name of saved file (optional).
-    """
-    
-    # Compiling players present in raw match data into DataFrame format.
-
-    match_data = pd.read_csv(load_path)
-    
-    try:
-        combined_player_names = match_data.loc[:, ['p1_name', 'p1_puuid', 'p1_summonerId']]
-    except KeyError as e:
-        print('File at ' + load_path + ' has invalid format')
-        raise
-
-    combined_player_names = combined_player_names.rename(columns = {'p1_name': 'name',
-                                                                    'p1_puuid': 'puuid',
-                                                                    'p1_summonerId': 'summonerId'})
-
-    for i in range(2,11):
-        
-        try:
-            player_names = match_data.loc[:, ['p{p_num}_name'.format(p_num = i),
-                                            'p{p_num}_puuid'.format(p_num = i), 
-                                            'p{p_num}_summonerId'.format(p_num = i)]]
-        except KeyError:
-            print('File at ' + load_path + ' has invalid format')
-            raise
-
-        player_names = player_names.rename(columns = {'p{p_num}_name'.format(p_num = i): 'name',
-                                                      'p{p_num}_puuid'.format(p_num = i): 'puuid',
-                                                      'p{p_num}_summonerId'.format(p_num = i): 'summonerId'})
-
-        combined_player_names = pd.concat([combined_player_names, player_names], ignore_index = True)
-        combined_player_names = combined_player_names.drop_duplicates( ignore_index = True)
-    
-    # Adding column for unknown player.
-    unknown_row = pd.DataFrame({'name': ['<U>'], 'puuid': ['0'], 'summonerId': ['0']})
-    combined_player_names = pd.concat([unknown_row, combined_player_names], ignore_index = True)
-    
-    # Add column of keys if include_key == True.
-    if include_key == True:
-        combined_player_names['key'] = combined_player_names.index
-        
-    # Saving data.
-    match_data_file_name = os.path.split(load_path)[1]
-    if not (save_path is None):
-        try:
-            combined_player_names.to_csv(save_path + match_data_file_name.replace('raw_match_data', 'processed_player_data'), index = False)
-        except Exception as e:
-            print(e)
-            print('Failed to save processed player data to .csv file.')
-        else:
-            return combined_player_names, match_data_file_name.replace('raw_match_data', 'processed_player_data')
-    
-    return combined_player_names
-
-def process_match_data (match_load_path: str, player_load_path: str, save_path: str | None = None, noise_rate: float = 0):
+def process_matches (match_load_path: str | None = None, player_load_path: str | None = None,
+                     match_data: pd.DataFrame | None = None, player_data: pd.DataFrame | None = None,
+                     save_path: str | None = None):
 
     """
     Args:
         match_load_path: Path to raw_match_data.
-        player_load_path: Path to processed_player_data.
-        save_path: Path to save processed_match_data.
-        noise_rate = Proportion of player names and key to delete from match data. 
+        player_load_path: Path to raw_player_data.
+        match_data: raw_match_data as DataFrame object.
+        player_data: raw_player_data as DataFrame object.
+        save_path: Path to save processed_match_data and processed_player_data.
     Returns:
-        processed_match_data: Processed match data in DataFrame format.
-        file_name: Name of saved file (optional).
+        processed_match_data: Processed match data in DataFrame format. processed_match_data.file_name records filename if saved.
+        processed_player_data: Processed player data in DataFrame format. processed_player_data.file_name records filename if saved.
     """
-    
-    assert 0 <= noise_rate <= 1, 'Invalid noise_rate (must be in-between 0 and 1).'
 
-    try:
-        match_data = pd.read_csv(match_load_path)
-        player_data = pd.read_csv(player_load_path)
-        player_data = player_data.drop(columns = ['puuid', 'summonerId'])
-    except FileNotFoundError as e:
-        print('Invalid load paths')
-        raise
+    # Loading player data into DataFrame.
+    if (player_data is None) and (player_load_path is None):
+        raise ValueError('Specify at least one of player_data or player_load_data')
+    elif player_data is None:
+        try:
+            player_data = pd.read_csv(player_load_path)
+        except FileNotFoundError as e:
+            print('Invalid load path')
+            raise
+    if (match_data is None) and (match_load_path is None):
+            raise ValueError('Specify at least one of match_data or match_load_path')
+    elif match_data is None:
+        try:
+            match_data = pd.read_csv(match_load_path)
+            match_data_file_name = os.path.split(match_load_path)[1]
+        except FileNotFoundError as e:
+            print('Invalid load path')
+            raise
+    else:
+        match_data_file_name = match_data.file_name
     
     # Check for invalid API key.
     try:
@@ -111,6 +61,12 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
     champ_dict = {int(static_champ_list['data'][champ]['key']):
               static_champ_list['data'][champ]['name'] for champ in static_champ_list['data']}
     
+    # Processing player data.
+    player_data = player_data.drop(columns = ['puuid', 'summonerId', 'accountId', 'leaguePoints'])
+    player_data = player_data.rename(columns = {'summonerName': 'name'})
+    player_data = pd.concat([pd.DataFrame([['<U>']], columns = ['name']), player_data], ignore_index = True)
+    player_data['key'] = player_data.index
+
     # Adding column displaying the winning team and then deleting p{i}_win columns.
     match_data['winning_team'] = match_data.apply( lambda row: 2 - int(row.p1_win), axis = 1)
     
@@ -121,9 +77,8 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
                                                 'p{p_num}_summonerId'.format(p_num = i),
                                                 'p{p_num}_win'.format(p_num = i)])
         
-        # Add noise - randomly delete 0.1 * player names from column p{i}_name.
-        row_indices = match_data.sample(frac = noise_rate).index
-        match_data.loc[row_indices, ['p{p_num}_name'.format(p_num = i)]] = '<U>'
+        # Delete replace all players not present in player_data with '<U>'
+        match_data[f'p{i}_name'] = match_data[f'p{i}_name'].apply(lambda name: name if name in player_data['name'].values else '<U>')
         
         # Add key column of keys for player i.
         match_data = match_data.join(player_data.set_index('name'), on = 'p{p_num}_name'.format(p_num = i))
@@ -148,18 +103,21 @@ def process_match_data (match_load_path: str, player_load_path: str, save_path: 
         ordered_cols.append('p{p_num}_key'.format(p_num = i))
         ordered_cols.append('p{p_num}_champId'.format(p_num = i))
         ordered_cols.append('p{p_num}_champName'.format(p_num = i))
-    
+        
     match_data_processed = match_data[ordered_cols]
+    player_data_processed = player_data[['name', 'key']]
     
     # Saving data.
-    match_data_file_name = os.path.split(match_load_path)[1]
+    match_data_processed.file_name = match_data_file_name.replace('raw_match_data', 'processed_match_data')
+    player_data_processed.file_name = match_data_file_name.replace('raw_match_data', 'processed_player_data')
     if not (save_path is None):
         try:
-            match_data_processed.to_csv(save_path + match_data_file_name.replace('raw_match_data', 'processed_match_data'), index = False)
+            match_data_processed.to_csv(save_path + match_data_processed.file_name, index = False)
+            player_data_processed.to_csv(save_path + player_data_processed.file_name, index = False)
         except Exception as e:
             print(e)
             print('Failed to save processed match data to .csv file.')
         else:
             return match_data_processed, match_data_file_name.replace('raw_match_data', 'processed_match_data')
 
-    return match_data_processed
+    return match_data_processed, player_data_processed
