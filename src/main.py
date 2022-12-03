@@ -6,7 +6,7 @@ def main():
 
     # EXAMPLE USAGE:
 
-    # Find player data for top 100 players:
+    # Find player data for top 200 players:
     raw_player_data = crawl.load_players('euw1', 200, save_path = './data/raw/')
 
     # Find match history of all players in raw_player_data between 1667937600 and time.time():
