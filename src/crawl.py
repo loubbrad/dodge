@@ -6,8 +6,15 @@ from riotwatcher import LolWatcher, ApiError
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 # TODO:
+# - Add start/end dates as argument for load matches.
+# - Add patch data (which patch match happened on) to match_data.
+# - Add metadata (as a dictionary) to dataFrames, add metadata to reading / writing csv files.
+# - Move saving csv file into it's own method (methods getting too long).
+# - Fix error handling so process always finishes.
+# - Change print statements so they overwrite (only take up 1 line).
 # - Specify dtypes for dataFrames (not sure if necessary).
 # - Replace .format() with f-stings (Unnecessary but helps with clarity).
+# - Make sure code is PEP8 compliant
 
 def load_players(reg: str, player_count: int = 200, save_path: str | None = None):
     

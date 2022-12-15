@@ -6,8 +6,13 @@ from riotwatcher import LolWatcher, ApiError
 RIOT_API_KEY = os.environ.get("RIOT_API_KEY")
 
 #TODO:
+# - Add patch data (n for how many patches ago the match happened)
+# - Add .start_date and .end_date attributes to dataframe.
+# - Include metadata reading when reading csv files.
+# - Move loading csv into it's own file (process_matches getting too long).
 # - Specify dtypes of dataFrames (getting dtypeWarning at runtime).
 # - Replace .format() with fstrings for readability.
+# - Make sure code is PEP8 compliant. 
 
 def process_matches (match_load_path: str | None = None, player_load_path: str | None = None,
                      match_data: pd.DataFrame | None = None, player_data: pd.DataFrame | None = None,
