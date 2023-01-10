@@ -1,3 +1,0 @@
-NOTES:
-
-I think the issue is a data issue. There is simply not enough data for the algorithm to generalise without overfitting.

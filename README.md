@@ -1,21 +1,21 @@
 ## dodge
 
-Implementations of various neural models for League of Legends Match prediction.
+### ./models/
 
-### ./notebooks/champ_only
+Implementations of various transformer based models for League of Legends Match prediction. A model can trained by executing the command ```python models/run.py combined --db_path data/raw/matches.db --epochs 20```. See the ./models/run.py file for a full list of argument options. The SQLite database should have the same structure my [opgg-webscraper](https://github.com/loua19/opgg-scrape) produces. I have included a small .csv file of euw matches in the correct format, you may run data/build_db.py to build this file into a .db file compatible with SQLite. 
 
-This includes a variety of models (MLP, LSTM, ect..) trained exclusively on team compositions. Overall I found these models are very sensitive and very quickly over-fit the data (when given enough parameters).
+ From my testing, the models in their current form are capable of predicting the outcome of a high-elo League of Legends match with ~63% accuracy on a held out test set. Unlike most other attempts I have come across, these models appropriately mask each players match history, preventing it from using information it would not have access to at test time (unlike [this](https://arxiv.org/pdf/2108.02799.pdf) paper for example).
 
 ### ./notebooks/group_match_prediction_paper
 
-An implementation of the paper [Group Match Prediction via Neural Networks](https://ceur-ws.org/Vol-2960/paper1.pdf) for predicting the outcome of a match by modelling champion and player-champion 'usefulness' values. Overall I found that the proposed model develops some understanding of what makes a good team composition. The results, however, don't exceed that of other common models applied to the problem. More specifically, models that take advantage of pre-calculated statistics (champion win rate, player experience) [[Link](https://arxiv.org/pdf/2108.02799.pdf)] still give better results by a wide margin.
+An implementation of the paper [Group Match Prediction via Neural Networks](https://ceur-ws.org/Vol-2960/paper1.pdf) for predicting the outcome of a match by modelling champion and player-champion 'usefulness' values. Overall I found that the proposed model develops some understanding of what makes a good team composition. The results, however, don't exceed that of other common models applied to the problem. More specifically, my transformer models and models that take advantage of pre-calculated statistics (champion win rate, player experience) [[Link]](https://arxiv.org/pdf/2108.02799.pdf)] give better results by a wide margin.
 
-### extra stuff
+### Installation
 
-The repository also includes data crawling/processing for League of Legends match data using the Riot API and Pandas. This can be found in the ./src directory. If you would like to use this simply install the relevant libraries (in particular, [Riot Watcher](https://github.com/pseudonym117/Riot-Watcher) is a dependency), and modify/run main.py (found in src). You must also store your API key in an environment variable named RIOT_API_KEY. Alternatively, you may follow the instructions below to create a copy of my personal conda environment for the project (note recommended). Please note that this environment includes PyTorch/CUDA and therefore will take a long time to download/install.
+You may install the necessary dependencies using conda as follows:
 
-- clone the repository to your local machine.
 - cd to dodge/ and run the following commands
-- ```conda create --name dodge --file ./config/req.txt```
+- ```conda create --name dodge --file ./config/req.yml```
 - ```conda activate dodge```
-- ```conda env config vars set RIOT_API_KEY=<your_api_key>```
+
+ Note that I have encountered some strange behaviour when using the non-CUDA version of PyTorch (issues with dtypes in dataset.py). If you are going to install the dependencies yourself, I recommend making sure the install the CUDA version of PyTorch. 
